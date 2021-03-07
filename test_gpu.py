@@ -100,7 +100,7 @@ parser = ae.ArgumentParser()
 parser.add_argument("-igpu","--igpu",required=True,help="input gpu label.")
 parser.add_argument("-ns","--n_sample",default=10000,help="number of samles.")
 parser.add_argument("-bs","--batch_size",default=64,help="batch size.")
-parser.add_argument("-ne","--nepoch",default=50,help="number of epithod.")
+parser.add_argument("-ne","--nepoch",type=int,default=50,help="number of epithod.")
 args = parser.parse_args()
 device = torch.device("cuda:"+str(args.igpu))
 
@@ -117,11 +117,21 @@ plt.xlim([-4, 4])
 plt.ylim([-4, 4])
 plt.scatter(sampled_x[:,0].cpu(),sampled_x[:,1].cpu(), s=15)
 
-plt.show()
-
 # train
 train_loader = DataLoader(sampled_x, batch_size=args.batch_size, shuffle=True)
 model = RealNVP(4, 2, 256).to(device)
 learning_rate = 0.0001
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 train(model,args.nepoch,train_loader,optimizer,z)
+
+#predict
+test_z = z.sample((args.n_sample,))
+test_x= model.inverse(test_z)
+test=test_x.cpu().detach().numpy()
+plt.figure(figsize = (5,5))
+plt.xlim([-4, 4])
+plt.ylim([-4, 4])
+plt.scatter(test[:,0],test[:,1], s=15)
+
+plt.show()
+
