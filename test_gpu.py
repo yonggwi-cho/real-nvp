@@ -94,44 +94,76 @@ def train(model,n_epochs,train_loader,optimizer,z):
             optimizer.step()
             running_loss += loss.item()
         print('epoch:[%2d/%2d] loss:%1.4f' % (epoch+1, n_epochs, running_loss / len(train_loader)))
+
+def train_demo(model,n_epochs,train_loader,optimizer,z,):
+    model.train()
+    for epoch in range(n_epochs):
+        running_loss = 0
+        for sample_x in train_loader:
+            sample = sample_x.to(device)
+            optimizer.zero_grad()
+            sample_z, log_det_jacobian = model(sample)
+            loss = -1 * torch.mean(z.log_prob(sample_z) + log_det_jacobian)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+        print('epoch:[%2d/%2d] loss:%1.4f' % (epoch+1, n_epochs, running_loss / len(train_loader)))
         
 # main
 parser = ae.ArgumentParser()
 parser.add_argument("-igpu","--igpu",required=True,help="input gpu label.")
 parser.add_argument("-ns","--n_sample",default=10000,help="number of samles.")
-parser.add_argument("-bs","--batch_size",default=64,help="batch size.")
+parser.add_argument("-bs","--batch_size",type=int,default=64,help="batch size.")
 parser.add_argument("-ne","--nepoch",type=int,default=50,help="number of epithod.")
 args = parser.parse_args()
 device = torch.device("cuda:"+str(args.igpu))
+fig = plt.figure()
+fig1 = fig.add_subplot(2,2,1)
+fig2 = fig.add_subplot(2,2,2)
+fig3 = fig.add_subplot(2,2,3)
+fig4 = fig.add_subplot(2,2,4)
 
 z = MultivariateNormal(torch.zeros(2).to(device), torch.eye(2).to(device))
 sampled_z = z.sample((args.n_sample,))
-plt.figure(figsize = (5,5))
-plt.xlim([-4, 4])
-plt.ylim([-4, 4])
-plt.scatter(sampled_z[:,0].cpu(), sampled_z[:,1].cpu(), s=15)
+fig1.set_xlim([-4, 4])
+fig1.set_ylim([-4, 4])
+fig1.scatter(sampled_z[:,0].cpu(), sampled_z[:,1].cpu(), s=15, color="blue")
 
 sampled_x = doublemoon_sample(args.n_sample)
-plt.figure(figsize = (5,5))
-plt.xlim([-4, 4])
-plt.ylim([-4, 4])
-plt.scatter(sampled_x[:,0].cpu(),sampled_x[:,1].cpu(), s=15)
+fig2.set_xlim([-4, 4])
+fig2.set_ylim([-4, 4])
+fig2.scatter(sampled_x[:,0].cpu(),sampled_x[:,1].cpu(), s=15, color="blue")
 
 # train
 train_loader = DataLoader(sampled_x, batch_size=args.batch_size, shuffle=True)
-model = RealNVP(4, 2, 256).to(device)
+n_flows=8
+#model = RealNVP(4, 2, 256).to(device)
+model = RealNVP(8, 2, 256).to(device)
 learning_rate = 0.0001
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 train(model,args.nepoch,train_loader,optimizer,z)
 
 #predict
+
 test_z = z.sample((args.n_sample,))
+test=test_z.cpu().detach().numpy()
+fig3.set_xlim([-4, 4])
+fig3.set_ylim([-4, 4])
+fig3.scatter(test[:,0],test[:,1], s=15, color="red")
+
+n_layers=5
+fig4.set_xlim([-4, 4])
+fig4.set_ylim([-4, 4])
+
 test_x= model.inverse(test_z)
 test=test_x.cpu().detach().numpy()
-plt.figure(figsize = (5,5))
-plt.xlim([-4, 4])
-plt.ylim([-4, 4])
-plt.scatter(test[:,0],test[:,1], s=15)
-
+fig4.scatter(test[:,0],test[:,1], s=15, color="red")
 plt.show()
 
+for i in range(n_flows):
+    test_x= model.inverse(test_z,i)
+    test=test_x.cpu().detach().numpy()
+    fig4.scatter(test[:,0],test[:,1], s=15, color="red")
+    plt.draw()
+    fig.savefig("test"+str(i)+".png")
+    fig4.cla()
